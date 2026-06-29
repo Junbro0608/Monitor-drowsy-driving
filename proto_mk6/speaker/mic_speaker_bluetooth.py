@@ -139,24 +139,17 @@ def get_ollama_text(user_text, user_data_txt):
     response = chat(
         model="llama3.2:3b",
         messages=[
-            # 1. AI의 역할과 규칙을 정해주는 "system" 역할
-            {
-                "role": "system",
-                "content": (
-                    "당신은 운전자 졸음 방지용 친절하고 똑똑한 AI 비서입니다.\n"
-                    "반드시 한국어로만 답하세요.\n"
-                    "운전, 안전, 졸음과 관련된 내용에만 답을 하고, 전혀 관련 없는 내용이면 '대답할 수 없습니다.'라고 답하세요.\n"
-                    "대답은 두 문장 이내로 짧고, 친근한 구어체로 자연스럽게 하세요."
-                )
-            },
-            # 2. 실제 데이터와 질문을 전달하는 "user" 역할
             {
                 "role": "user",
                 "content": (
-                    f"[현재 운전자 상태 데이터]\n"
-                    f"{user_data_txt}\n\n"
-                    f"사용자 질문: {user_text}\n\n"
-                    "위 상태 데이터를 참고해서 대답해줘. 만약 위험 수치가 높다면 걱정하면서 휴식이나 환기를 권유해줘."
+                    "You are an AI assistant for driver drowsiness prevention. "
+                    "Use the provided system status data to answer user questions naturally. "
+                    "When answering, explicitly mention relevant metrics (e.g., eye closure time, closure ratio) "
+                    "and the specific cause of the alert if available. "
+                    "If the question is unrelated, reply with 'I cannot answer that.' "
+                    "Keep your response concise, within two sentences.\n\n"
+                    "Only speak Korean"
+                    f"driver sleep data:{user_data_txt}\n\nUser Question: {user_text}"
                 ),
             }
         ],
@@ -194,7 +187,7 @@ def play_mp3(mp3_path, volume="80%"):
     subprocess.run(["mpg123", "-q", "-a", "pulse", str(WARMUP_MP3)], env=env, check=False)
     subprocess.run(["mpg123", "-q", "-a", "pulse", str(mp3_path)], env=env, check=True)
 
-def speak_text(text, volume="70%"):
+def speak_text(text, volume="100%"):
     '''통합함수 text->mp3->sound 출력'''
     print("AI:", text)
     make_mp3(text, OUTPUT_MP3)
@@ -202,18 +195,18 @@ def speak_text(text, volume="70%"):
 
 def is_wake_word(text):
     '''예약어 지정 함수'''
-    wake_words = ["안녕", "안녕하세요", "하이"]
+    wake_words = ["마이카", "아이카", "아이가", "마카","마이크"]
     return any(word in text for word in wake_words)
 
 if __name__ == "__main__":
     print("음성 대기 모드 시작")
-    print("'안녕'이라고 말하면 질문 모드로 들어갑니다.")
+    print("'마이카'이라고 말하면 질문 모드로 들어갑니다.")
     print("종료하려면 Ctrl+C를 누르세요.")
 
     try:
         while True:
             print("\n==============================")
-            print("트리거 대기 중... '안녕'이라고 말하세요.")
+            print("트리거 대기 중... '마이카'이라고 말하세요.")
             print("==============================")
 
             record_audio(seconds=5)
@@ -225,10 +218,10 @@ if __name__ == "__main__":
                 print("'안녕' 트리거가 인식되지 않았습니다. 다시 대기합니다.")
                 continue
 
-            speak_text("네 질문하세요.")
+            #speak_text("네 질문하세요.")
 
-            print("\n질문을 10초 동안 말하세요.")
-            record_audio(seconds=10)
+            print("\n질문을 6초 동안 말하세요.")
+            record_audio(seconds=6)
             user_text = transcribe_audio()
 
             print("\n==============================")

@@ -16,7 +16,6 @@ eyes_engine = 'eye_detect_yolov8n_fp16.engine'
 close_engine = 'close_yolov8n_fp16.engine'
 pose_engine = 'pose_yolov26n_rev0.pt'
 #--------------------------------------#
-ollama_model = 'gemma3:4b'
 camera = 0
 width = 320
 height = 240
@@ -126,7 +125,6 @@ def ai_detect(current_frame):
             aligned_face = face_crop
             center = (0, 0)
 
-        # 💡 [수정됨] 얼굴 전체를 흑백으로 바꾸는 코드 삭제. 
         # 객체 탐지는 원본 '컬러' 이미지(aligned_face)를 그대로 사용합니다!
         if aligned_face.size > 0:
             eye_preds = eyes_model(aligned_face, imgsz=416, conf=0.25, iou=0.45, device=0, verbose=False)
@@ -157,13 +155,13 @@ def ai_detect(current_frame):
                     detected_eye_boxes.append((final_ex, final_ey, ew, eh))
                     
                     # --- 눈 상태(OPEN/CLOSE) 분류 ---
-                    # 💡 1. 우선 '컬러' 얼굴 이미지에서 눈 바운딩 박스만큼 잘라냅니다.
+                    # 1. 우선 '컬러' 얼굴 이미지에서 눈 바운딩 박스만큼 잘라냅니다.
                     single_eye_crop = aligned_face[max(0, ey1):min(aligned_face.shape[0], ey2), 
                                                    max(0, ex1):min(aligned_face.shape[1], ex2)]
                     
                     if single_eye_crop.size > 0:
                         
-                        # 💡 2. [추가됨] 잘라낸 눈 이미지만 '흑백(3채널 유지)'으로 변환합니다!
+                        # 2. [추가됨] 잘라낸 눈 이미지만 '흑백(3채널 유지)'으로 변환합니다!
                         gray_eye = cv2.cvtColor(single_eye_crop, cv2.COLOR_BGR2GRAY)
                         gray_eye_3ch = cv2.cvtColor(gray_eye, cv2.COLOR_GRAY2BGR)
 
@@ -172,9 +170,9 @@ def ai_detect(current_frame):
                         
                         # 흑백으로 잘 변환되었는지 디버깅 창 띄우기 (128x128 뻥튀기)
                         debug_eye_img = cv2.resize(gray_eye_3ch, (128, 128))
-                        cv2.imshow(f"Debug {debug_side} Eye", debug_eye_img)
+                        # cv2.imshow(f"Debug {debug_side} Eye", debug_eye_img)
 
-                        # 💡 3. 분류 추론 모델에는 흑백으로 변환된 눈 이미지(gray_eye_3ch)를 넣습니다.
+                        # 3. 분류 추론 모델에는 흑백으로 변환된 눈 이미지(gray_eye_3ch)를 넣습니다.
                         close_preds = eyes_close_model(gray_eye_3ch, imgsz=128, device=0, verbose=False)
                         
                         if close_preds and hasattr(close_preds[0], 'probs') and close_preds[0].probs is not None:
@@ -184,7 +182,7 @@ def ai_detect(current_frame):
                             # 터미널 디버깅 출력
                             side_str = "Left" if (ex1 + ex2) / 2.0 < face_center_x else "Right"
                             status_str = "CLOSE" if top1_class_id == 1 else "OPEN"
-                            # print(f"[DEBUG] {side_str:5s} Eye | 예측: {status_str:5s} (Class {top1_class_id}) | 신뢰도: {top1_conf*100:.1f}%")
+                            #print(f"[DEBUG] {side_str:5s} Eye | 예측: {status_str:5s} (Class {top1_class_id}) | 신뢰도: {top1_conf*100:.1f}%")
 
                             score = 1.0 if top1_class_id == 1 else 0.0
                             
@@ -215,7 +213,7 @@ def ai_detect(current_frame):
 def check_sleep(eyes_results, head_angle):
     '''눈 상태와 머리 각도를 큐에 저장하고, 졸음(sleep) 및 자세 불량(pose)을 판별하는 함수'''
     global last_alarm_time  # 타이머 변수를 끌어다 씁니다.
-    global last_alarm_time, total_sleep_warnings
+    global last_alarm_time, total_sleep_warnings, total_pose_warnings
     sleep = 0
     pose = 0
 
@@ -227,7 +225,7 @@ def check_sleep(eyes_results, head_angle):
 
     # 2. 머리 각도(Pose) 상태 큐 업데이트
     if head_angle is not None:
-        if abs(head_angle) < 50:
+        if abs(head_angle) < 60:
             agree_history.append(1)
         else:
             agree_history.append(0)
@@ -246,7 +244,7 @@ def check_sleep(eyes_results, head_angle):
     else:
         close_ratio = 0
 
-    # 4. 🚨 알람 재생 (쿨다운 필터 적용)
+    # 4. 알람 재생 (쿨다운 필터 적용)
     current_time = time.time()
     
     # 졸음이나 자세 불량 중 하나라도 걸렸고 AND 마지막 알람 후 5초가 지났을 때만 실행!
@@ -270,8 +268,6 @@ def check_sleep(eyes_results, head_angle):
 
     return close_ratio
         
-
-
 
 def render_frame(frame, face_results, target_keypoints, eyes_results, face_box, head_angle, current_fps, eye_rects):
     '''화면에 결과를 그리는 전용 함수'''
@@ -314,13 +310,13 @@ def render_frame(frame, face_results, target_keypoints, eyes_results, face_box, 
     if head_angle is not None:
         angle_text = f"Angle: {head_angle:.1f} deg"
         color = (0, 0, 255) if abs(head_angle) > 30 else (0, 255, 255)
-        cv2.putText(frame, angle_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
+        cv2.putText(frame, angle_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
 
-    if current_fps is None:
-        current_fps = 0.0
-    cv2.putText(frame, f"FPS: {current_fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+    # if current_fps is None:
+    #     current_fps = 0.0
+    # cv2.putText(frame, f"FPS: {current_fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
     
-    frame = cv2.resize(frame, (640, 480))
+    frame = cv2.resize(frame, (1280, 960))
     
     return frame
 
@@ -353,7 +349,7 @@ def check_mic():
             print("\n트리거 인식 결과:", trigger_text)
 
             if not is_wake_word(trigger_text):
-                print("'안녕' 트리거가 인식되지 않았습니다. 다시 대기합니다.")
+                print("'마이카' 트리거가 인식되지 않았습니다. 다시 대기합니다.")
                 continue
 
             check_voice = 1
@@ -369,8 +365,8 @@ def llm(close_ratio=0, total_sleep_warnings=0, total_pose_warnings=0):
     )
     print('LLM input 정보')
     print(user_data_txt)
-    print("\n질문을 10초 동안 말하세요.")
-    record_audio(seconds=10)
+    print("\n질문을 6초 동안 말하세요.")
+    record_audio(seconds=6)
     user_text = transcribe_audio()
 
     print("\n==============================")
